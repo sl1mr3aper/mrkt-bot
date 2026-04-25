@@ -12,6 +12,21 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.demo_dataset import (
+    BACKDROPS as _DEMO_BACKDROPS,
+)
+from core.demo_dataset import (
+    SYMBOLS as _DEMO_SYMBOLS,
+)
+from core.demo_dataset import (
+    make_collections as _demo_collections,
+)
+from core.demo_dataset import (
+    make_listings as _demo_listings,
+)
+from core.demo_dataset import (
+    make_models_index as _demo_models_index,
+)
 from utils.exceptions import (
     AuthError,
     InsufficientBalanceError,
@@ -222,6 +237,37 @@ class MrktClient:
             "cursor": result.cursor,
         }
 
+    async def list_models(
+        self, collection_names: list[str] | None = None
+    ) -> list[str]:
+        """Best-effort attribute discovery via a search sample.
+
+        amrkt does not expose a dedicated attributes endpoint, so we sample
+        the most recent listings and extract distinct model names.
+        """
+        try:
+            page = await self.search_gifts(
+                collection_names=collection_names or None,
+                count=100,
+            )
+        except Exception:
+            return []
+        return sorted({(g.get("model") or "") for g in page["items"] if g.get("model")})
+
+    async def list_backdrops(self) -> list[str]:
+        try:
+            page = await self.search_gifts(count=100)
+        except Exception:
+            return []
+        return sorted({(g.get("backdrop") or "") for g in page["items"] if g.get("backdrop")})
+
+    async def list_symbols(self) -> list[str]:
+        try:
+            page = await self.search_gifts(count=100)
+        except Exception:
+            return []
+        return sorted({(g.get("symbol") or "") for g in page["items"] if g.get("symbol")})
+
     # ─── inventory ────────────────────────────────────────
 
     async def get_inventory(self, *, count: int = 100) -> list[dict[str, Any]]:
@@ -305,13 +351,27 @@ class MrktClient:
 
 
 class MockMrktClient:
-    """Static stand-in used by tests / first-run setup with no credentials."""
+    """Static stand-in used by tests / first-run setup with no credentials.
 
-    def __init__(self) -> None:
+    Seeded with synthetic data covering 4 collections, 16 models, 8 backdrops,
+    8 symbols and ~40 listings so the bot UI can be exercised without real
+    MRKT credentials.
+    """
+
+    def __init__(self, *, seed_demo: bool = True) -> None:
         self.rate_limiter = RateLimiter(rate=1000, per=1.0)
-        self._balance = 50.0
-        self.collections: list[dict[str, Any]] = []
-        self.gifts: list[dict[str, Any]] = []
+        self._balance = 250.0
+        self.collections: list[dict[str, Any]] = (
+            _demo_collections() if seed_demo else []
+        )
+        self.gifts: list[dict[str, Any]] = (
+            _demo_listings() if seed_demo else []
+        )
+        self.models_by_collection: dict[str, list[str]] = (
+            _demo_models_index() if seed_demo else {}
+        )
+        self.backdrops: list[str] = list(_DEMO_BACKDROPS) if seed_demo else []
+        self.symbols: list[str] = list(_DEMO_SYMBOLS) if seed_demo else []
         self.bought_calls: list[list[str]] = []
         self.sold_calls: list[tuple[list[str], list[float]]] = []
 
@@ -330,9 +390,73 @@ class MockMrktClient:
     async def list_collections(self) -> list[dict[str, Any]]:
         return list(self.collections)
 
-    async def search_gifts(self, **kwargs: Any) -> dict[str, Any]:
-        items = list(self.gifts)
-        return {"items": items, "total": len(items), "cursor": ""}
+    async def list_models(self, collection_names: list[str] | None = None) -> list[str]:
+        if not collection_names:
+            out: set[str] = set()
+            for v in self.models_by_collection.values():
+                out.update(v)
+            return sorted(out)
+        out = set()
+        for name in collection_names:
+            out.update(self.models_by_collection.get(name, []))
+        return sorted(out)
+
+    async def list_backdrops(self) -> list[str]:
+        return list(self.backdrops)
+
+    async def list_symbols(self) -> list[str]:
+        return list(self.symbols)
+
+    async def search_gifts(
+        self,
+        *,
+        collection_names: list[str] | None = None,
+        model_names: list[str] | None = None,
+        backdrop_names: list[str] | None = None,
+        symbol_names: list[str] | None = None,
+        ordering: str = "Price",
+        low_to_high: bool = True,
+        min_price_ton: float | None = None,
+        max_price_ton: float | None = None,
+        mintable: bool | None = None,
+        number: int | None = None,
+        count: int = 20,
+        cursor: str = "",
+    ) -> dict[str, Any]:
+        items = [g for g in self.gifts if g.get("is_on_sale")]
+        if collection_names:
+            items = [g for g in items if g.get("collection") in collection_names]
+        if model_names:
+            items = [g for g in items if g.get("model") in model_names]
+        if backdrop_names:
+            items = [g for g in items if g.get("backdrop") in backdrop_names]
+        if symbol_names:
+            items = [g for g in items if g.get("symbol") in symbol_names]
+        if min_price_ton is not None:
+            items = [g for g in items if (g.get("price") or 0) >= min_price_ton]
+        if max_price_ton is not None:
+            items = [g for g in items if (g.get("price") or 0) <= max_price_ton]
+        if mintable is not None:
+            items = [g for g in items if bool(g.get("mintable")) == bool(mintable)]
+        if number is not None:
+            items = [g for g in items if g.get("number") == number]
+
+        reverse = not low_to_high
+        if ordering == "Price":
+            items.sort(key=lambda g: g.get("price") or 0, reverse=reverse)
+        elif ordering == "Rarity":
+            items.sort(
+                key=lambda g: (g.get("modelRarity") or 99) + (g.get("backdropRarity") or 99),
+                reverse=reverse,
+            )
+        elif ordering == "Number":
+            items.sort(key=lambda g: g.get("number") or 0, reverse=reverse)
+
+        # cursor-based pagination
+        start = int(cursor) if cursor.isdigit() else 0
+        page = items[start:start + count]
+        next_cursor = str(start + count) if start + count < len(items) else ""
+        return {"items": page, "total": len(items), "cursor": next_cursor}
 
     async def get_inventory(self, *, count: int = 100) -> list[dict[str, Any]]:
         return [g for g in self.gifts if g.get("is_mine")]
@@ -344,6 +468,8 @@ class MockMrktClient:
             for g in self.gifts:
                 if g.get("id") == gid:
                     self._balance -= g.get("price", 0.0)
+                    g["is_mine"] = True
+                    g["is_on_sale"] = False
                     out.append({"price_ton": g.get("price", 0.0), "gift": g})
         return out
 
@@ -351,6 +477,11 @@ class MockMrktClient:
         self, gift_ids: list[str], prices_ton: list[float]
     ) -> dict[str, Any]:
         self.sold_calls.append((gift_ids, prices_ton))
+        for gid, p in zip(gift_ids, prices_ton, strict=False):
+            for g in self.gifts:
+                if g.get("id") == gid:
+                    g["is_on_sale"] = True
+                    g["price"] = p
         return {"ids": gift_ids, "prices_ton": prices_ton}
 
     async def cancel_sale(self, gift_ids: list[str]) -> list[str]:

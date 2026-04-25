@@ -35,7 +35,44 @@ class UserRepository:
         f = UserFilter(user_id=user.id)
         self.session.add(f)
         await self.session.flush()
+        await self._seed_demo_trades(user.id)
         return user
+
+    async def _seed_demo_trades(self, user_id: int) -> None:
+        """In DRY-RUN/mock mode, populate ~80 fake trades so analytics screens
+        show meaningful gainers/losers/P&L charts immediately after /start.
+
+        Gated by the ``MRKT_DEMO_DATA`` env var so unit tests are not affected.
+        """
+        import os
+
+        if os.environ.get("MRKT_DEMO_DATA", "").lower() not in {"1", "true", "yes"}:
+            return
+        try:
+            from core.demo_dataset import make_trades
+
+            from ..models import Trade
+        except Exception:
+            return
+        for t in make_trades(user_id):
+            self.session.add(
+                Trade(
+                    user_id=user_id,
+                    gift_id=t.gift_id,
+                    gift_name=t.gift_name,
+                    collection=t.collection,
+                    buy_price=t.buy_price,
+                    sell_price=t.sell_price,
+                    commission=round(t.sell_price * 0.05, 4),
+                    gross_profit=t.gross_profit,
+                    net_profit=t.net_profit,
+                    profit_pct=t.profit_pct,
+                    hold_time_sec=3600,
+                    dry_run=True,
+                    sold_at=t.sold_at,
+                )
+            )
+        await self.session.flush()
 
     async def update_settings(self, user_id: int, **kwargs: object) -> None:
         user = await self.session.get(User, user_id)

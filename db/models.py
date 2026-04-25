@@ -252,3 +252,46 @@ class SystemLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class WatchlistItem(Base):
+    """User-defined alerts: trigger on collection floor crossings."""
+
+    __tablename__ = "watchlist"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    collection: Mapped[str] = mapped_column(String(64))
+    target_price: Mapped[float] = mapped_column(Float)
+    direction: Mapped[str] = mapped_column(String(8), default="below")  # below|above
+    note: Mapped[str | None] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_triggered: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_watchlist_user_active", "user_id", "is_active"),
+    )
+
+
+class Notification(Base):
+    """Outgoing/queued user notifications (alerts, fills, errors)."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # buy_filled|sold|stop_loss|alert|error
+    title: Mapped[str] = mapped_column(String(128))
+    body: Mapped[str] = mapped_column(Text)
+    delivered: Mapped[bool] = mapped_column(Boolean, default=False)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_notifications_user_kind", "user_id", "kind"),
+    )

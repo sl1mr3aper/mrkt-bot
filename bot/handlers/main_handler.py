@@ -7,7 +7,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards.common import main_menu_kb
+from bot.keyboards.common import back_button, main_menu_kb
 from bot.states import MainMenuSG
 from db.database import Database
 from db.repositories import TradeRepository, UserRepository
@@ -75,3 +75,32 @@ async def cb_toggle_auto(
     user.auto_trading = new_value
     await cb.answer("Авто-торговля ВКЛ" if new_value else "Авто-торговля ВЫКЛ")
     await _render_menu(cb, db, engine, user)
+
+
+_HELP_TEXT = (
+    "❓ <b>Справка по боту</b>\n\n"
+    "<b>🔍 Поиск/Фильтры</b> — выбираешь коллекции, модели, фоны, символы; "
+    "ставишь min/max цену и rarity; кнопка «Найти сейчас» делает поиск.\n\n"
+    "<b>🤖 Стратегии</b> — 10 типов автоматической торговли. "
+    "Жми «ℹ️ Описание» в карточке стратегии — там подробное объяснение, "
+    "риск-профиль, пример работы и параметры.\n\n"
+    "<b>📈 Аналитика</b> — топ-прибыли/убытки, ликвидность коллекций, "
+    "горячие/холодные коллекции, скоркарта, P&L по периодам и графики.\n\n"
+    "<b>🔔 Watchlist</b> — алерты на пересечение floor-цены коллекцией.\n\n"
+    "<b>🧪 DRY-RUN</b> — режим без реальных сделок (по умолчанию ON). "
+    "Все «покупки» и «продажи» только логируются.\n\n"
+    "<b>⚠️ Реальная торговля</b>\n"
+    "Бот может торговать на маркете <b>tgmrkt.io</b> только при наличии "
+    "<code>MRKT_API_ID</code>/<code>MRKT_API_HASH</code> от my.telegram.org. "
+    "Без них работает в DRY-RUN с локально сгенерированными данными "
+    "(56 коллекций, ~670 листингов)."
+)
+
+
+@router.callback_query(F.data == "menu:help")
+async def cb_help(cb: CallbackQuery) -> None:
+    if cb.message is not None:
+        await cb.message.edit_text(
+            _HELP_TEXT, parse_mode="HTML", reply_markup=back_button("menu:main")
+        )
+    await cb.answer()

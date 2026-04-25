@@ -6,7 +6,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards.common import settings_kb
+from bot.keyboards.common import cancel_kb, settings_kb
 from bot.states import SettingsSG
 from db.database import Database
 from db.repositories import UserRepository
@@ -42,7 +42,11 @@ async def cb_open(cb: CallbackQuery, state: FSMContext, user) -> None:
 async def cb_stop(cb: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(SettingsSG.stop_loss_pct)
     if cb.message is not None:
-        await cb.message.edit_text("Введите стоп-лосс (%): например 15")
+        await cb.message.edit_text(
+            "Введите стоп-лосс (%): например <code>15</code>",
+            parse_mode="HTML",
+            reply_markup=cancel_kb("menu:settings"),
+        )
     await cb.answer()
 
 
@@ -56,7 +60,11 @@ async def msg_stop(message: Message, state: FSMContext, db: Database, user) -> N
     async with db.session() as sess:
         await UserRepository(sess).update_settings(user.id, stop_loss_pct=value)
     user.stop_loss_pct = value
-    await message.answer(f"✅ Стоп-лосс = {value}%")
+    await message.answer(
+        f"✅ Стоп-лосс = {value}%\n\n" + _summary(user),
+        parse_mode="HTML",
+        reply_markup=settings_kb(),
+    )
     await state.set_state(SettingsSG.main)
 
 
@@ -64,7 +72,10 @@ async def msg_stop(message: Message, state: FSMContext, db: Database, user) -> N
 async def cb_max(cb: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(SettingsSG.max_buy_ton)
     if cb.message is not None:
-        await cb.message.edit_text("Максимальная стоимость одной покупки (TON):")
+        await cb.message.edit_text(
+            "Максимальная стоимость одной покупки (TON):",
+            reply_markup=cancel_kb("menu:settings"),
+        )
     await cb.answer()
 
 
@@ -78,7 +89,11 @@ async def msg_max(message: Message, state: FSMContext, db: Database, user) -> No
     async with db.session() as sess:
         await UserRepository(sess).update_settings(user.id, max_buy_ton=value)
     user.max_buy_ton = value
-    await message.answer(f"✅ Макс. покупка = {value} TON")
+    await message.answer(
+        f"✅ Макс. покупка = {value} TON\n\n" + _summary(user),
+        parse_mode="HTML",
+        reply_markup=settings_kb(),
+    )
     await state.set_state(SettingsSG.main)
 
 
@@ -86,7 +101,10 @@ async def msg_max(message: Message, state: FSMContext, db: Database, user) -> No
 async def cb_min_profit(cb: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(SettingsSG.min_profit_ton)
     if cb.message is not None:
-        await cb.message.edit_text("Минимальная прибыль за сделку (TON):")
+        await cb.message.edit_text(
+            "Минимальная прибыль за сделку (TON):",
+            reply_markup=cancel_kb("menu:settings"),
+        )
     await cb.answer()
 
 
@@ -100,7 +118,11 @@ async def msg_min_profit(message: Message, state: FSMContext, db: Database, user
     async with db.session() as sess:
         await UserRepository(sess).update_settings(user.id, min_profit_ton=value)
     user.min_profit_ton = value
-    await message.answer(f"✅ Мин. прибыль = {value} TON")
+    await message.answer(
+        f"✅ Мин. прибыль = {value} TON\n\n" + _summary(user),
+        parse_mode="HTML",
+        reply_markup=settings_kb(),
+    )
     await state.set_state(SettingsSG.main)
 
 
@@ -108,7 +130,10 @@ async def msg_min_profit(message: Message, state: FSMContext, db: Database, user
 async def cb_large(cb: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(SettingsSG.large_deal_confirm)
     if cb.message is not None:
-        await cb.message.edit_text("Порог 'крупной сделки' (TON), требующий подтверждения:")
+        await cb.message.edit_text(
+            "Порог 'крупной сделки' (TON), требующий подтверждения:",
+            reply_markup=cancel_kb("menu:settings"),
+        )
     await cb.answer()
 
 
@@ -122,7 +147,11 @@ async def msg_large(message: Message, state: FSMContext, db: Database, user) -> 
     async with db.session() as sess:
         await UserRepository(sess).update_settings(user.id, large_deal_ton=value)
     user.large_deal_ton = value
-    await message.answer(f"✅ Крупная сделка ≥ {value} TON")
+    await message.answer(
+        f"✅ Крупная сделка ≥ {value} TON\n\n" + _summary(user),
+        parse_mode="HTML",
+        reply_markup=settings_kb(),
+    )
     await state.set_state(SettingsSG.main)
 
 
@@ -134,6 +163,7 @@ async def cb_proxy(cb: CallbackQuery, state: FSMContext) -> None:
             "Введите proxy URL вида <code>socks5://user:pass@host:port</code> "
             "или <code>none</code> чтобы удалить.",
             parse_mode="HTML",
+            reply_markup=cancel_kb("menu:settings"),
         )
     await cb.answer()
 
@@ -145,7 +175,11 @@ async def msg_proxy(message: Message, state: FSMContext, db: Database, user) -> 
     async with db.session() as sess:
         await UserRepository(sess).update_settings(user.id, proxy_url=proxy)
     user.proxy_url = proxy
-    await message.answer("✅ Прокси сохранён" if proxy else "✅ Прокси удалён")
+    await message.answer(
+        ("✅ Прокси сохранён" if proxy else "✅ Прокси удалён") + "\n\n" + _summary(user),
+        parse_mode="HTML",
+        reply_markup=settings_kb(),
+    )
     await state.set_state(SettingsSG.main)
 
 

@@ -11,7 +11,9 @@ from typing import Any
 @dataclass
 class CollectionSnapshot:
     name: str
+    title: str = ""
     floor_price: float = 0.0
+    previous_floor: float = 0.0
     volume: int = 0
     listings: list[dict[str, Any]] = field(default_factory=list)
     sales_24h: int = 0
@@ -38,9 +40,17 @@ class MarketState:
         floor_price: float,
         volume: int = 0,
         listings: list[dict[str, Any]] | None = None,
+        *,
+        title: str | None = None,
     ) -> None:
         snap = self.collections.setdefault(name, CollectionSnapshot(name=name))
+        if snap.floor_price and snap.floor_price != floor_price:
+            snap.previous_floor = snap.floor_price
+        elif not snap.previous_floor:
+            snap.previous_floor = floor_price
         snap.floor_price = floor_price
+        if title and not snap.title:
+            snap.title = title
         if volume:
             snap.volume = volume
         if listings is not None:

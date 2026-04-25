@@ -62,7 +62,14 @@ async def cb_open_portfolio(
             f"купл {fmt_ton(item.buy_price)} → цель {fmt_ton(item.target_sell)} "
             f"⭐ {fmt_rarity(item.rarity_score)}"
         )
-    await cb.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=_back())
+    if len(items) > 30:
+        lines.append(f"\n<i>… и ещё {len(items) - 30} позиций</i>")
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📊 Аналитика портфеля", callback_data="analytics:portfolio")
+    kb.button(text="💾 Экспорт CSV", callback_data="portfolio:export")
+    kb.button(text="🏠 Главное меню", callback_data="menu:main")
+    kb.adjust(1)
+    await cb.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=kb.as_markup())
     await cb.answer()
 
 

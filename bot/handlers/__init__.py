@@ -8,6 +8,7 @@ from .search_handler import router as search_router
 from .settings_handler import router as settings_router
 from .strategy_handler import router as strategy_router
 from .trading_handler import router as trading_router
+from .watchlist_handler import router as watchlist_router
 
 ALL_ROUTERS = [
     main_router,
@@ -17,6 +18,7 @@ ALL_ROUTERS = [
     portfolio_router,
     strategy_router,
     analytics_router,
+    watchlist_router,
     settings_router,
 ]
 

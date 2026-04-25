@@ -75,7 +75,12 @@ class TradingEngine:
     async def refresh_collections(self) -> list[dict[str, Any]]:
         collections = await self.client.list_collections()
         for c in collections:
-            self.market.update_collection(c["name"], c["floor_price"], c.get("volume", 0))
+            self.market.update_collection(
+                c["name"],
+                c["floor_price"],
+                c.get("volume", 0),
+                title=c.get("title"),
+            )
         return collections
 
     async def refresh_balance(self, force: bool = False) -> float:

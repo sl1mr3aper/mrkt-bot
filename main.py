@@ -26,6 +26,11 @@ from utils.logger import get_logger, setup_logger
 
 
 async def amain() -> None:
+    import os
+
+    # Enable demo trades seeding for first-run users when running w/o MRKT creds.
+    if not settings.MRKT_API_ID or not settings.MRKT_API_HASH:
+        os.environ.setdefault("MRKT_DEMO_DATA", "1")
     settings.ensure_dirs()
     setup_logger(
         level=settings.LOG_LEVEL,
@@ -82,6 +87,21 @@ async def amain() -> None:
     auth = AuthManager(client, refresh_hours=settings.TOKEN_REFRESH_HOURS)
     engine = TradingEngine(client=client, db=db, config=settings, notify=notify)
 
+    # Pre-warm the in-memory market state so analytics are populated even
+    # before the background monitor catches up.
+    with suppress(Exception):
+        await engine.refresh_collections()
+        from collections import defaultdict
+        listings_by = defaultdict(list)
+        for lst in getattr(client, "gifts", []) or []:
+            listings_by[lst.get("collection")].append(lst)
+        for name, items in listings_by.items():
+            engine.market.update_collection(
+                name,
+                min((float(i.get("price") or 0.0) for i in items), default=0.0),
+                listings=items,
+            )
+
     tm = TaskManager()
     tm.spawn("market_monitor", MarketMonitor(
         engine, db, client,
@@ -98,6 +118,11 @@ async def amain() -> None:
     tm.spawn("stop_loss_monitor", StopLossMonitor(engine, db).run_forever)
     tm.spawn("analytics_reporter", AnalyticsReporter(engine, db, notify=notify).run_forever)
     tm.spawn("health_checker", HealthChecker(engine).run_forever)
+    from tasks.watchlist_alerter import WatchlistAlerter
+    tm.spawn(
+        "watchlist_alerter",
+        WatchlistAlerter(engine, db, notify=notify).run_forever,
+    )
 
     dp = build_dispatcher(db=db, engine=engine)
 
