@@ -1,0 +1,72 @@
+[project]
+name = "mrkt-bot"
+version = "0.1.0"
+description = "Universal Telegram NFT trading bot for tgmrkt.io marketplace"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "alembic/versions",
+    "data",
+    "logs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF"]
+ignore = [
+    "E501",   # line too long (allow long strings/docstrings)
+    "B008",   # function calls in defaults (FastAPI/aiogram patterns)
+    "B017",   # broad exception in tests is ok for our validators
+    "B904",   # raise from is verbose for our error wrapping
+    "E741",   # ambiguous variable names (e.g. `l` in list comprehension)
+    "RUF001", # ambiguous unicode (used in russian strings)
+    "RUF002",
+    "RUF003",
+    "RUF012", # mutable default class attributes (we treat them as constants)
+    "RUF046", # int(round(...)) cast — explicit is fine here
+    "UP042",  # str + Enum mixin works for our use case
+    "SIM102", # combined ifs hurt readability for guard clauses
+    "SIM105", # contextlib.suppress is more verbose than try/except/pass for one-liners
+    "SIM108", # ternary vs if/else readability
+    "SIM115", # context manager for tempfile not always desirable
+    "F841",   # unused local — sometimes intentional in handlers
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bot", "core", "strategies", "tasks", "db", "analytics", "utils"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = false
+warn_redundant_casts = true
+strict_optional = true
+no_implicit_optional = true
+check_untyped_defs = true
+exclude = [
+    "tests/",
+    "alembic/",
+    "scripts/",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+source = ["bot", "core", "strategies", "tasks", "db", "analytics", "utils"]
+omit = ["tests/*", "scripts/*", "alembic/*"]
